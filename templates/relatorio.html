@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório de Manutenções</title>
+</head>
+<body>
+    <h1>Relatório de Manutenções Concluídas</h1>
+    <table border="1" cellpadding="10" cellspacing="0">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Solicitante</th>
+                <th>Local</th>
+                <th>Descrição</th>
+                <th>Data de Criação</th>
+                <th>Data de Conclusão</th>
+                <th>Responsável</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for chamado in chamados %}
+            <tr>
+                <td>{{ chamado.id }}</td>
+                <td>{{ chamado.solicitante }}</td>
+                <td>{{ chamado.local }}</td>
+                <td>{{ chamado.descricao }}</td>
+                <td>{{ chamado.data_criacao.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ chamado.data_conclusao.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ chamado.responsavel }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

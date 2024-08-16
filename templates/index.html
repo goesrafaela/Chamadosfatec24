@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrar Chamado</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-5">Registrar Chamado de Manutenção de TI</h1>
+        <form action="{{ url_for('registrar_chamado') }}" method="POST" class="mt-4">
+            <div class="form-group">
+                <label for="solicitante">Nome do Solicitante</label>
+                <input type="text" class="form-control" id="solicitante" name="solicitante" required>
+            </div>
+            <div class="form-group">
+                <label for="local">Laboratório/Departamento</label>
+                <input type="text" class="form-control" id="local" name="local" required>
+            </div>
+            <div class="form-group">
+                <label for="descricao">Descrição do Problema</label>
+                <textarea class="form-control" id="descricao" name="descricao" rows="3" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Registrar Chamado</button>
+        </form>
+    </div>
+</body>
+</html>

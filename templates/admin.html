@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administração de Chamados</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            function carregarChamados() {
+                $.getJSON('/admin/chamados', function(data) {
+                    var tbody = $('table tbody');
+                    tbody.empty();
+                    data.forEach(function(chamado) {
+                        var row = $('<tr>').append(
+                            $('<td>').text(chamado.id),
+                            $('<td>').text(chamado.solicitante),
+                            $('<td>').text(chamado.local),
+                            $('<td>').text(chamado.descricao),
+                            $('<td>').text(chamado.data_criacao),
+                            $('<td>').html(chamado.data_conclusao ? chamado.responsavel : 
+                                '<form action="/concluir_chamado/' + chamado.id + '" method="POST">' +
+                                '<input type="text" name="responsavel" class="form-control form-control-sm" placeholder="Responsável" required>' +
+                                '<button type="submit" class="btn btn-success btn-sm mt-2">Concluir</button>' +
+                                '</form>'
+                            ),
+                            $('<td>').text(chamado.data_conclusao ? 'Concluído em ' + chamado.data_conclusao : 'Pendente')
+                        );
+                        tbody.append(row);
+                    });
+                }).fail(function(jqXHR, textStatus, errorThrown) {
+                    console.error('Erro ao carregar dados: ', textStatus, errorThrown);
+                });
+            }
+            
+            // Carregar chamados na inicialização
+            carregarChamados();
+            
+            // Recarregar chamados a cada 10 segundos
+            setInterval(carregarChamados, 10000);
+        });
+    </script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Administração de Chamados</h1>
+        <table class="table mt-4">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Solicitante</th>
+                    <th>Local</th>
+                    <th>Descrição</th>
+                    <th>Data de Criação</th>
+                    <th>Responsável</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Linhas de chamados serão adicionadas aqui via AJAX -->
+            </tbody>
+        </table>
+        <div class="mt-4">
+            <a href="{{ url_for('gerar_relatorio') }}" class="btn btn-primary btn-block">Gerar Relatório em PDF</a>
+            <a href="{{ url_for('apagar_historico') }}" class="btn btn-danger btn-block mt-2">Apagar Histórico de Chamados</a>
+        </div>
+    </div>
+</body>
+</html>
