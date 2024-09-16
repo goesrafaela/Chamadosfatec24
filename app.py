@@ -107,4 +107,5 @@ def apagar_historico():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    # Configuração para rodar no IP 192.168.11.221 e porta 5000
+    app.run(host='192.168.11.221', port=5000, debug=True)
