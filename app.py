@@ -5,6 +5,10 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from io import BytesIO
 import os
+import pytz  # Biblioteca para manipulação de fusos horários
+
+# Configuração do fuso horário para horário de Brasília
+timezone = pytz.timezone('America/Sao_Paulo')
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///chamados.db')
@@ -15,7 +19,8 @@ class Chamado(db.Model):
     solicitante = db.Column(db.String(100), nullable=False)
     local = db.Column(db.String(100), nullable=False)
     descricao = db.Column(db.Text, nullable=False)
-    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
+    # Ajuste do fuso horário ao criar o chamado
+    data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(timezone))
     data_conclusao = db.Column(db.DateTime, nullable=True)
     responsavel = db.Column(db.String(100), nullable=True)
 
@@ -53,7 +58,7 @@ def get_chamados():
 @app.route('/concluir_chamado/<int:id>', methods=['POST'])
 def concluir_chamado(id):
     chamado = Chamado.query.get_or_404(id)
-    chamado.data_conclusao = datetime.utcnow()
+    chamado.data_conclusao = datetime.now(timezone)
     chamado.responsavel = request.form['responsavel']
     db.session.commit()
     return redirect(url_for('admin'))
