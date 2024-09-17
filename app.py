@@ -33,7 +33,8 @@ def registrar_chamado():
     solicitante = request.form['solicitante']
     local = request.form['local']
     descricao = request.form['descricao']
-    chamado = Chamado(solicitante=solicitante, local=local, descricao=descricao)
+    # Registro do chamado com a data e hora ajustadas para o fuso horário de Brasília
+    chamado = Chamado(solicitante=solicitante, local=local, descricao=descricao, data_criacao=datetime.now(timezone))
     db.session.add(chamado)
     db.session.commit()
     return redirect(url_for('index'))
@@ -58,6 +59,7 @@ def get_chamados():
 @app.route('/concluir_chamado/<int:id>', methods=['POST'])
 def concluir_chamado(id):
     chamado = Chamado.query.get_or_404(id)
+    # Registro da data de conclusão com o fuso horário de Brasília
     chamado.data_conclusao = datetime.now(timezone)
     chamado.responsavel = request.form['responsavel']
     db.session.commit()
