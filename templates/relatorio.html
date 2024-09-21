@@ -2,36 +2,38 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatório de Manutenções</title>
+    <title>Relatório de Chamados</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .button-spacing {
+            margin: 10px 0; /* Espaçamento em cima e embaixo dos botões */
+        }
+    </style>
 </head>
 <body>
-    <h1>Relatório de Manutenções Concluídas</h1>
-    <table border="1" cellpadding="10" cellspacing="0">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Solicitante</th>
-                <th>Local</th>
-                <th>Descrição</th>
-                <th>Data de Criação</th>
-                <th>Data de Conclusão</th>
-                <th>Responsável</th>
-            </tr>
-        </thead>
-        <tbody>
+    <div class="container mt-5">
+        <h1 class="mb-4">Relatório de Chamados</h1>
+        <ul class="list-group mb-4">
             {% for chamado in chamados %}
-            <tr>
-                <td>{{ chamado.id }}</td>
-                <td>{{ chamado.solicitante }}</td>
-                <td>{{ chamado.local }}</td>
-                <td>{{ chamado.descricao }}</td>
-                <td>{{ chamado.data_criacao.strftime('%d/%m/%Y %H:%M') }}</td>
-                <td>{{ chamado.data_conclusao.strftime('%d/%m/%Y %H:%M') }}</td>
-                <td>{{ chamado.responsavel }}</td>
-            </tr>
+            <li class="list-group-item">
+                <strong>ID:</strong> {{ chamado._id }} <br>
+                <strong>Solicitante:</strong> {{ chamado.solicitante }} <br>
+                <strong>Data de Criação:</strong> {{ chamado.data_criacao.strftime('%d/%m/%Y %H:%M') }}
+            </li>
             {% endfor %}
-        </tbody>
-    </table>
+        </ul>
+        <div class="button-spacing">
+            <<form action="{{ url_for('gerar_html') }}" method="POST">
+                <button type="submit" class="btn btn-success">Salvar como HTML</button>
+            </form>
+        </div>
+        <div class="button-spacing">
+            <a href="{{ url_for('admin') }}" class="btn btn-primary">Voltar para Admin</a>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.6/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
