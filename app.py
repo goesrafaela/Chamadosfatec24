@@ -1,119 +1,189 @@
-from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash, make_response
+from pymongo import MongoClient
 from datetime import datetime
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from io import BytesIO
 import os
-import pytz  # Biblioteca para manipulação de fusos horários
+import pytz
+from functools import wraps
+from dotenv import load_dotenv
+from bson.objectid import ObjectId
+import pdfkit
+
+# Carregar as variáveis de ambiente do arquivo .env
+load_dotenv()
 
 # Configuração do fuso horário para horário de Brasília
 timezone = pytz.timezone('America/Sao_Paulo')
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///chamados.db')
-db = SQLAlchemy(app)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'mysecretkey')
 
-class Chamado(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    solicitante = db.Column(db.String(100), nullable=False)
-    local = db.Column(db.String(100), nullable=False)
-    descricao = db.Column(db.Text, nullable=False)
-    # Ajuste do fuso horário ao criar o chamado
-    data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(timezone))
-    data_conclusao = db.Column(db.DateTime, nullable=True)
-    responsavel = db.Column(db.String(100), nullable=True)
+# Conexão com MongoDB Atlas usando a variável de ambiente MONGO_URI
+MONGO_URI = os.getenv('MONGO_URI')
+client = MongoClient(MONGO_URI)
+db_mongo = client['meu_banco_de_dados']
+chamados_collection = db_mongo['chamados']
+
+# Definir login e senha para o administrador a partir de variáveis de ambiente
+ADMIN_USER = os.getenv('ADMIN_USER', 'admin')
+ADMIN_PASS = os.getenv('ADMIN_PASS', 'senha123')
+
+# Rota para a página de login
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        if username == ADMIN_USER and password == ADMIN_PASS:
+            session['logged_in'] = True
+            return redirect(url_for('admin'))
+        else:
+            flash('Usuário ou senha inválidos!', 'danger')
+            return redirect(url_for('login'))
+
+    return render_template('login.html')
+
+# Rota para logout
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    flash('Você foi desconectado!', 'success')
+    return redirect(url_for('login'))
+
+# Verificação se o usuário está logado para acessar a área administrativa
+def login_required(f):
+    @wraps(f)
+    def wrap(*args, **kwargs):
+        if not session.get('logged_in'):
+            flash('Por favor, faça login para acessar esta página.', 'warning')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return wrap
+
+# Rota para o painel de administração, protegida pelo login
+@app.route('/admin')
+@login_required
+def admin():
+    chamados = list(chamados_collection.find())
+    for chamado in chamados:
+        chamado['status'] = 'Concluído' if chamado.get('data_conclusao') else 'Pendente'
+    return render_template('admin.html', chamados=chamados)
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/registrar_chamado', methods=['POST'])
+# Rota para exibir a página de registro de chamado
+@app.route('/registrar_chamado', methods=['GET', 'POST'])
 def registrar_chamado():
-    solicitante = request.form['solicitante']
-    local = request.form['local']
-    descricao = request.form['descricao']
-    # Registro do chamado com a data e hora ajustadas para o fuso horário de Brasília
-    chamado = Chamado(solicitante=solicitante, local=local, descricao=descricao, data_criacao=datetime.now(timezone))
-    db.session.add(chamado)
-    db.session.commit()
-    return redirect(url_for('index'))
+    if request.method == 'POST':
+        solicitante = request.form['solicitante']
+        local = request.form['local']
+        descricao = request.form['descricao']
 
-@app.route('/admin')
-def admin():
-    return render_template('admin.html')
+        chamado = {
+            "solicitante": solicitante,
+            "local": local,
+            "descricao": descricao,
+            "data_criacao": datetime.now(timezone),
+            "data_conclusao": None,
+            "responsavel": None
+        }
+        chamados_collection.insert_one(chamado)
+        flash('Chamado registrado com sucesso!', 'success')
+        return redirect(url_for('registrar_chamado'))
+
+    return render_template('registrar_chamado.html')
+
+# Rota para exibir o relatório de chamados
+@app.route('/relatorio', methods=['GET'])
+@login_required
+def relatorio():
+    chamados = list(chamados_collection.find())
+    return render_template('relatorio.html', chamados=chamados)
+
+# Rota para gerar HTML
+@app.route('/gerar_html', methods=['POST'])
+@login_required
+def gerar_html():
+    chamados = list(chamados_collection.find())
+    rendered = render_template('relatorio.html', chamados=chamados)
+
+    response = make_response(rendered)
+    response.headers['Content-Type'] = 'text/html'
+    response.headers['Content-Disposition'] = 'attachment; filename=relatorio.html'
+    return response
 
 @app.route('/admin/chamados')
+@login_required
 def get_chamados():
-    chamados = Chamado.query.all()
+    chamados = chamados_collection.find()
     return jsonify([{
-        'id': chamado.id,
-        'solicitante': chamado.solicitante,
-        'local': chamado.local,
-        'descricao': chamado.descricao,
-        'data_criacao': chamado.data_criacao.strftime('%d/%m/%Y %H:%M'),
-        'data_conclusao': chamado.data_conclusao.strftime('%d/%m/%Y %H:%M') if chamado.data_conclusao else None,
-        'responsavel': chamado.responsavel
-    } for chamado in chamados])
+        'id': idx + 1,
+        'solicitante': chamado['solicitante'],
+        'local': chamado['local'],
+        'descricao': chamado['descricao'],
+        'data_criacao': chamado['data_criacao'].strftime('%d/%m/%Y %H:%M'),
+        'data_conclusao': chamado['data_conclusao'].strftime('%d/%m/%Y %H:%M') if chamado.get('data_conclusao') else None,
+        'responsavel': chamado.get('responsavel', 'Não definido'),
+        'status': 'Concluído' if chamado.get('data_conclusao') else 'Pendente'
+    } for idx, chamado in enumerate(chamados)])
 
-@app.route('/concluir_chamado/<int:id>', methods=['POST'])
-def concluir_chamado(id):
-    chamado = Chamado.query.get_or_404(id)
-    # Registro da data de conclusão com o fuso horário de Brasília
-    chamado.data_conclusao = datetime.now(timezone)
-    chamado.responsavel = request.form['responsavel']
-    db.session.commit()
+# Rota para concluir um chamado
+@app.route('/concluir_chamado/<chamado_id>', methods=['POST'])
+@login_required
+def concluir_chamado(chamado_id):
+    try:
+        chamado = chamados_collection.find_one({"_id": ObjectId(chamado_id)})
+        if not chamado:
+            flash('Chamado não encontrado.', 'danger')
+            return redirect(url_for('admin'))
+
+        # Verifica se o chamado já está concluído
+        if chamado.get("data_conclusao") is not None:
+            flash('Chamado já está concluído.', 'info')
+            return redirect(url_for('admin'))
+
+        # Atualiza o chamado como concluído
+        result = chamados_collection.update_one(
+            {"_id": ObjectId(chamado_id)},
+            {"$set": {
+                "data_conclusao": datetime.now(timezone)
+            }}
+        )
+
+        if result.modified_count > 0:
+            flash('Chamado concluído com sucesso!', 'success')
+        else:
+            flash('Erro ao concluir o chamado.', 'danger')
+
+    except Exception as e:
+        flash(f'Erro ao concluir chamado: {str(e)}', 'danger')
+
     return redirect(url_for('admin'))
 
-@app.route('/gerar_relatorio')
-def gerar_relatorio():
-    chamados = Chamado.query.filter(Chamado.data_conclusao.isnot(None)).all()
-    
-    buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
-
-    p.setFont("Helvetica", 12)
-    p.drawString(100, height - 40, "Relatório de Manutenções Concluídas")
-    p.drawString(100, height - 60, " ")
-
-    y = height - 80
-    for chamado in chamados:
-        p.drawString(100, y, f"ID: {chamado.id}")
-        p.drawString(150, y, f"Solicitante: {chamado.solicitante}")
-        p.drawString(300, y, f"Local: {chamado.local}")
-        y -= 20
-        p.drawString(100, y, f"Descrição: {chamado.descricao}")
-        y -= 20
-        p.drawString(100, y, f"Data de Criação: {chamado.data_criacao.strftime('%d/%m/%Y %H:%M')}")
-        if chamado.data_conclusao:
-            p.drawString(300, y, f"Data de Conclusão: {chamado.data_conclusao.strftime('%d/%m/%Y %H:%M')}")
-            p.drawString(100, y - 20, f"Responsável: {chamado.responsavel}")
-        y -= 40
-        
-        if y < 40:  # Se chegar perto do final da página, cria uma nova
-            p.showPage()
-            y = height - 40
-            p.setFont("Helvetica", 12)
-
-    p.showPage()
-    p.save()
-
-    buffer.seek(0)
-    return send_file(buffer, as_attachment=True, download_name='relatorio.pdf', mimetype='application/pdf')
-
-@app.route('/apagar_historico')
-def apagar_historico():
+# Rota para excluir um chamado
+@app.route('/excluir_chamado/<chamado_id>', methods=['POST'])
+@login_required
+def excluir_chamado(chamado_id):
     try:
-        db.session.query(Chamado).delete()
-        db.session.commit()
-        return redirect(url_for('admin'))
+        result = chamados_collection.delete_one({"_id": ObjectId(chamado_id)})
+        if result.deleted_count > 0:
+            flash('Chamado excluído com sucesso!', 'success')
+        else:
+            flash('Chamado não encontrado.', 'danger')
     except Exception as e:
-        db.session.rollback()
-        return f"Erro ao tentar apagar o histórico: {str(e)}"
+        flash(f'Erro ao excluir chamado: {str(e)}', 'danger')
+    
+    return redirect(url_for('admin'))
+
+# Rota para apagar o histórico de chamados concluídos
+@app.route('/apagar_historico', methods=['POST'])
+@login_required
+def apagar_historico():
+    chamados_collection.delete_many({"data_conclusao": {"$exists": True}})
+    flash('Histórico de chamados concluídos apagado com sucesso!', 'success')
+    return redirect(url_for('admin'))
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-    # Configuração para rodar no IP 192.168.11.221 e porta 5000
-    app.run(host='192.168.11.221', port=5000, debug=True)
+    app.run(debug=True)
