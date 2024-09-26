@@ -81,11 +81,14 @@ def registrar_chamado():
         local = request.form['local']
         descricao = request.form['descricao']
 
+        # Captura o horário local correto com fuso horário de Brasília
+        data_criacao = timezone.localize(datetime.now())
+
         chamado = {
             "solicitante": solicitante,
             "local": local,
             "descricao": descricao,
-            "data_criacao": datetime.now(timezone),
+            "data_criacao": data_criacao,
             "data_conclusao": None,
             "responsavel": None
         }
@@ -99,14 +102,14 @@ def registrar_chamado():
 @app.route('/relatorio', methods=['GET'])
 @login_required
 def relatorio():
-    chamados = list(chamados_collection.find())
+    chamados = list(chamados_collection.find({'excluido': False}))  # Apenas não excluídos
     return render_template('relatorio.html', chamados=chamados)
 
 # Rota para gerar HTML
 @app.route('/gerar_html', methods=['POST'])
 @login_required
 def gerar_html():
-    chamados = list(chamados_collection.find())
+    chamados = list(chamados_collection.find({'excluido': False}))  # Apenas não excluídos
     rendered = render_template('relatorio.html', chamados=chamados)
 
     response = make_response(rendered)
@@ -116,18 +119,9 @@ def gerar_html():
 
 @app.route('/admin/chamados')
 @login_required
-def get_chamados():
-    chamados = chamados_collection.find()
-    return jsonify([{
-        'id': idx + 1,
-        'solicitante': chamado['solicitante'],
-        'local': chamado['local'],
-        'descricao': chamado['descricao'],
-        'data_criacao': chamado['data_criacao'].strftime('%d/%m/%Y %H:%M'),
-        'data_conclusao': chamado['data_conclusao'].strftime('%d/%m/%Y %H:%M') if chamado.get('data_conclusao') else None,
-        'responsavel': chamado.get('responsavel', 'Não definido'),
-        'status': 'Concluído' if chamado.get('data_conclusao') else 'Pendente'
-    } for idx, chamado in enumerate(chamados)])
+def admin_chamados():
+    chamados = list(chamados_collection.find({'excluido': False}))  # Apenas não excluídos
+    return render_template('admin_chamados.html', chamados=chamados)
 
 # Rota para concluir um chamado
 @app.route('/concluir_chamado/<chamado_id>', methods=['POST'])
@@ -144,11 +138,12 @@ def concluir_chamado(chamado_id):
             flash('Chamado já está concluído.', 'info')
             return redirect(url_for('admin'))
 
-        # Atualiza o chamado como concluído
+        # Atualiza o chamado como concluído com a data e hora correta de Brasília
+        data_conclusao = timezone.localize(datetime.now())
         result = chamados_collection.update_one(
             {"_id": ObjectId(chamado_id)},
             {"$set": {
-                "data_conclusao": datetime.now(timezone)
+                "data_conclusao": data_conclusao
             }}
         )
 
@@ -163,19 +158,11 @@ def concluir_chamado(chamado_id):
     return redirect(url_for('admin'))
 
 # Rota para excluir um chamado
-@app.route('/excluir_chamado/<chamado_id>', methods=['POST'])
+@app.route('/admin/chamados/excluir/<chamado_id>', methods=['POST'])
 @login_required
 def excluir_chamado(chamado_id):
-    try:
-        result = chamados_collection.delete_one({"_id": ObjectId(chamado_id)})
-        if result.deleted_count > 0:
-            flash('Chamado excluído com sucesso!', 'success')
-        else:
-            flash('Chamado não encontrado.', 'danger')
-    except Exception as e:
-        flash(f'Erro ao excluir chamado: {str(e)}', 'danger')
-    
-    return redirect(url_for('admin'))
+    chamados_collection.update_one({'_id': ObjectId(chamado_id)}, {'$set': {'excluido': True}})
+    return redirect(url_for('admin_chamados'))
 
 # Rota para apagar o histórico de chamados concluídos
 @app.route('/apagar_historico', methods=['POST'])

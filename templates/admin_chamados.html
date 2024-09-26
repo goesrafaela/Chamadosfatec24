@@ -1,0 +1,18 @@
+<ul class="list-group mb-4">
+    {% if chamados %}
+        {% for chamado in chamados %}
+        <li class="list-group-item">
+            <strong>ID:</strong> {{ chamado._id }} <br>
+            <strong>Solicitante:</strong> {{ chamado.solicitante }} <br>
+            <strong>Local:</strong> {{ chamado.local }} <br>
+            <strong>Descrição:</strong> {{ chamado.descricao }} <br>
+            <strong>Data de Criação:</strong> {{ chamado.data_criacao.strftime('%d/%m/%Y %H:%M') }} <br>
+            <form action="{{ url_for('excluir_chamado', chamado_id=chamado._id) }}" method="POST">
+                <button type="submit" class="btn btn-danger">Excluir Chamado</button>
+            </form>
+        </li>
+        {% endfor %}
+    {% else %}
+        <li class="list-group-item">Nenhum chamado encontrado.</li>
+    {% endif %}
+</ul>
